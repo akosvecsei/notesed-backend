@@ -86,9 +86,21 @@ router.post('/signup', upload.single('profilePicture'), async (req, res) => {
 
     await newUser.save();
 
-    const htmlFilePath = path.join(__dirname, '../utils/registration/registrationEmail_'+ 'en' +'.html');
+    const htmlFilePath = path.join(__dirname, '../utils/registration/registrationEmail_'+ language +'.html');
     const htmlTemplate = fs.readFileSync(htmlFilePath, 'utf-8');
     const template = handlebars.compile(htmlTemplate);
+
+    const getStartedMessages = {
+      "en": "Let's get started ✏️",
+      "hu": "Vágjunk bele ✏️",
+      "de": "Los geht's ✏️",
+      "fr": "C'est parti ✏️",
+      "it": "Iniziamo ✏️",
+      "es": "¡Empecemos! ✏️",
+      "ja": "始めましょう ✏️",
+      "zh": "开始吧 ✏️",
+      "ar": "لنبدأ ✏️"
+    };
 
     const replacements = {
       name: firstName
@@ -99,7 +111,7 @@ router.post('/signup', upload.single('profilePicture'), async (req, res) => {
     const mailOptions = {
       from: '"NOTESED" <noreply@notesed.com>',
       to: 'akos@azureh.com',
-      subject: "Let's get started ✏️",
+      subject: getStartedMessages[language],
       html: htmlContent,
     };
 
@@ -398,7 +410,7 @@ router.post('/request-password-reset', async (req, res) => {
       user.resetCode = resetCode;
       await user.save();
 
-      const htmlFilePath2 = path.join(__dirname, '../utils/resetPassword/resetPasswordEmail_' + 'hu' + '.html');
+      const htmlFilePath2 = path.join(__dirname, '../utils/resetPassword/resetPasswordEmail_' + user.language + '.html');
       const htmlTemplate2 = fs.readFileSync(htmlFilePath2, 'utf-8');
       const template2 = handlebars.compile(htmlTemplate2);
 
@@ -424,7 +436,7 @@ router.post('/request-password-reset', async (req, res) => {
       const mailOptions = {
         from: '"NOTESED" <noreply@notesed.com>',
         to: 'akos@azureh.com',
-        subject: passwordResetCodes["hu"],
+        subject: passwordResetCodes[user.language],
         html: htmlContent2,
       };
   
@@ -441,6 +453,68 @@ router.post('/request-password-reset', async (req, res) => {
       res.status(500).json({ message: 'Server error.' });
   }
 });
+
+router.post('/resend-password-reset-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User with this email does not exist.' });
+    }
+
+    if (!user.resetCode) {
+      return res.status(400).json({ message: 'No reset code found for this user. Request a new code first.' });
+    }
+
+    const htmlFilePath2 = path.join(__dirname, '../utils/resetPassword/resetPasswordEmail_' + 'hu' + '.html');
+    const htmlTemplate2 = fs.readFileSync(htmlFilePath2, 'utf-8');
+    const template2 = handlebars.compile(htmlTemplate2);
+
+    const passwordResetCodes = {
+      "en": "Password Reset Code 🔑",
+      "hu": "Jelszó visszaállítási kód 🔑",
+      "de": "Passwort zurücksetzen Code 🔑",
+      "fr": "Code réinitialisation 🔑",
+      "it": "Codice di reset della password 🔑",
+      "es": "Código de restablecer 🔑",
+      "ja": "パスワードリセットコード 🔑",
+      "zh": "密码重置代码 🔑",
+      "ar": "رمز إعادة تعيين كلمة المرور 🔑"
+    };
+
+    const replacements = {
+      name: user.firstName,
+      resetCode: user.resetCode
+    };
+
+    const htmlContent2 = template2(replacements);
+
+    const mailOptions = {
+      from: '"NOTESED" <noreply@notesed.com>',
+      to: "akos@azureh.com",
+      subject: passwordResetCodes["hu"],
+      html: htmlContent2,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        return res.status(500).json({ message: 'Error sending email.' });
+      }
+      console.log('E-mail sent:', info.response);
+    });
+
+    res.status(200).json({ message: 'Reset code resent successfully.' });
+
+  } catch (error) {
+    console.error('Error resending reset code:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+module.exports = router;
+
 
 router.post('/verify-reset-code', async (req, res) => {
   try {
@@ -491,6 +565,29 @@ router.post('/set-new-password', async (req, res) => {
   }
 });
 
+router.post('/clear-reset-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User with this email does not exist.' });
+    }
+
+    if (!user.resetCode) {
+      return res.status(200).json({ message: 'No reset code to clear. It may have been already cleared.' });
+    }
+
+    user.resetCode = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Reset code cleared successfully.' });
+
+  } catch (error) {
+    console.error('Error clearing reset code:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
 
 router.patch('/update-password/:userId', auth, async (req, res) => {
   try {

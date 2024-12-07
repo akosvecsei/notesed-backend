@@ -189,14 +189,7 @@ router.get("/tasksToday", authMiddleware, async (req, res) => {
     }).populate({
       path: "assignedUsers.user",
       select: "-password -locations -friends",
-    });
-
-    tasks.sort((a, b) => {
-      if (a.completed === b.completed) {
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      }
-      return a.completed - b.completed;
-    });
+    }).sort({ priority: 1 });
 
     res.status(200).json(tasks);
   } catch (error) {
@@ -501,7 +494,7 @@ router.get("/search", authMiddleware, async (req, res) => {
         {
           $or: [
             { createdBy: new mongoose.Types.ObjectId(userId) },
-            { assignedUsers: new mongoose.Types.ObjectId(userId) },
+            { "assignedUsers.user": new mongoose.Types.ObjectId(userId) },
           ],
         },
         {
@@ -715,7 +708,7 @@ router.post("/initialize", authMiddleware, async (req, res) => {
     const result = await Task.updateMany(
       {
         completed: false,
-        dueDate: { $lt: today },
+        dueDate: { $ne: today },
         $or: [
           { createdBy: userId },
           { "assignedUsers.user": userId },
@@ -732,6 +725,7 @@ router.post("/initialize", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "An error occurred during initialization.", error });
   }
 });
+
 
 router.post("/cleanup", authMiddleware, async (req, res) => {
   try {
